@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لعبة الثعبان التعليمية - الرياضيات</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ font-family:Tahoma,Arial;
+ background:linear-gradient(135deg,#6e6e6e,#203a43,#2c5364);
+ color:#640101;
+ text-align:center;
+}
+.header{
+ background:rgba(158, 158, 158, 0.6);
+ padding:15px;
+ line-height:1.7;
+}
+.header h1{color:#fbc531;margin:5px}
+.info{margin:10px;font-size:20px}
+.info span{color:#fbc531}
+
+.gameArea{
+ display:flex;
+ justify-content:center;
+ align-items:flex-start;
+ gap:20px;
+ flex-wrap:wrap;
+}
+
+canvas{
+ background:#111;
+ border:5px solid #fbc531;
+ border-radius:10px;
+}
+
+.questionBox{
+ display:none;
+ background:#fbc531;
+ color:#000;
+ padding:20px;
+ border-radius:15px;
+ width:260px;
+}
+.questionBox h3{margin-bottom:15px}
+
+button{
+ padding:10px;
+ margin:5px 0;
+ border:none;
+ border-radius:10px;
+ font-size:18px;
+ cursor:pointer;
+ width:100%;
+}
+
+.startScreen{
+ position:fixed;
+ inset:0;
+ background:rgba(0,0,0,.9);
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ z-index:999;
+}
+
+.startBox{
+ background:#fbc531;
+ color:#000;
+ padding:30px;
+ border-radius:20px;
+ width:90%;
+ max-width:350px;
+}
+
+.startBox input{
+ width:100%;
+ padding:10px;
+ font-size:18px;
+ margin-bottom:15px;
+ text-align:center;
+}
+
+.gameOver{
+ display:none;
+ position:fixed;
+ inset:0;
+ background:rgba(0,0,0,.85);
+ color:#95ff00;
+ align-items:center;
+ justify-content:center;
+ flex-direction:column;
+ z-index:1000;
+}
+
+/* ===== إضافات فقط ===== */
+.logo{
+ width:80px;
+ margin-bottom:5px;
+}
+
+.mobile-controls{
+ display:block;
+ margin:15px auto;
+}
+
+.mobile-controls button{
+ width:70px;
+ height:70px;
+ font-size:28px;
+ background:#fbc531;
+}
+
+.muteBtn{
+ background:#444;
+ color:#fff;
+ width:auto;
+ padding:8px 15px;
+ margin-top:5px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ملف الصوت -->
+<audio id="bgSound" src="img/audio/WhatsApp Video 2026-01-20 at 11.00.20 [عالي الدقة].mp3" loop></audio>
+
+<div class="startScreen" id="startScreen">
+ <div class="startBox">
+  <h2>🎮 لعبة الثعبان التعليمية</h2>
+  <input id="playerName" placeholder="اسم الطالب">
+  <button onclick="startGame()">ابدأ اللعب</button>
+ </div>
+</div>
+
+<div class="header">
+ <img src="img/صورة24.png" class="logo" width="200" >
+  <img src="img/Amjad-Qurtoba-National-Schools.png" class="logo">
+
+ <h1>🐍 لعبة الثعبان التعليمية – الرياضيات</h1>
+ <p><b>شركة عطاء التعليمية</b></p>
+ <p><b>مدارس أمجاد قرطبة</b></p>
+  <p><b>القسم الإبتدائي  </b></p>
+    <p><b>تصميم الطالب : محمد اليزيدي    </b></p>
+ <p><b>إشراف الأستاذ : محمود خطاب  </b></p>
+ <p><b>  مدير المدرسة : الأستاذ : محمد الحميضي</b></p>
+
+ <button class="muteBtn" onclick="toggleSound()">🔊 كتم الصوت</button>
+</div>
+
+<div class="info">
+ 👤 الطالب: <span id="playerNameDisplay">-</span> |
+ ⭐ الدرجة: <span id="score">0</span> |
+ 🏆 أعلى درجة: <span id="high">0</span>
+</div>
+
+<div class="gameArea">
+
+ <div class="questionBox" id="qBox">
+  <h3 id="qText"></h3>
+  <div id="answers"></div>
+ </div>
+
+ <canvas id="game" width="400" height="400"></canvas>
+
+</div>
+
+<!-- أزرار اللمس -->
+<div class="mobile-controls" id="mobileControls">
+ <div><button onclick="setDir('UP')">⬆</button></div>
+ <div>
+  <button onclick="setDir('RIGHT')">➡</button>
+  <button onclick="setDir('DOWN')">⬇</button>
+  <button onclick="setDir('LEFT')">⬅</button>
+ </div>
+</div>
+
+<div class="gameOver" id="gameOver">
+ <h2>🎮 انتهت اللعبة</h2>
+ <p>درجتك: <span id="finalScore"></span></p>
+ <button onclick="location.reload()">العب مرة أخرى</button>
+</div>
+
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const size=20, cells=20;
+
+let snake, food, dir, score, loop, speed=300;
+let questionIndex=0;
+let selectedQuestions=[];
+let sound=document.getElementById("bgSound");
+
+let high=localStorage.getItem("highSnake")||0;
+document.getElementById("high").innerText=high;
+
+/* ===== نفس بنك الأسئلة بدون تغيير ===== */
+const allQuestions=[
+ {q:"2 + 3 = ؟",a:["4","5","6"],c:1},
+ {q:"6 ÷ 2 = ؟",a:["2","3","4"],c:1},
+ {q:"3 × 4 = ؟",a:["7","12","10"],c:1},
+ {q:"9 - 5 = ؟",a:["3","4","5"],c:1},
+ {q:"5 + 5 = ؟",a:["9","10","11"],c:1},
+ {q:"8 + 6 = ؟",a:["13","14","15"],c:1},
+ {q:"10 - 7 = ؟",a:["2","3","4"],c:1},
+ {q:"4 × 5 = ؟",a:["15","20","25"],c:1},
+ {q:"12 ÷ 3 = ؟",a:["3","4","5"],c:1},
+ {q:"7 + 9 = ؟",a:["14","15","16"],c:2},
+ {q:"15 - 6 = ؟",a:["8","9","10"],c:1},
+ {q:"2 × 6 = ؟",a:["10","12","14"],c:1},
+ {q:"18 ÷ 6 = ؟",a:["2","3","4"],c:1},
+ {q:"11 + 4 = ؟",a:["14","15","16"],c:1}
+];
+
+document.addEventListener("keydown",e=>{
+ if(e.key=="ArrowLeft"&&dir!="RIGHT")dir="LEFT";
+ if(e.key=="ArrowRight"&&dir!="LEFT")dir="RIGHT";
+ if(e.key=="ArrowUp"&&dir!="DOWN")dir="UP";
+ if(e.key=="ArrowDown"&&dir!="UP")dir="DOWN";
+});
+
+function setDir(d){
+ const opp={LEFT:"RIGHT",RIGHT:"LEFT",UP:"DOWN",DOWN:"UP"};
+ if(dir!==opp[d]) dir=d;
+}
+
+function toggleSound(){
+ sound.muted=!sound.muted;
+}
+
+function startGame(){
+ const name=document.getElementById("playerName").value.trim();
+ if(!name)return alert("ادخل اسم الطالب");
+ document.getElementById("playerNameDisplay").innerText=name;
+ document.getElementById("startScreen").style.display="none";
+ sound.play();
+
+ if(/Mobi|Android/i.test(navigator.userAgent)){
+  document.getElementById("mobileControls").style.display="block";
+ }
+
+ selectedQuestions=[...allQuestions].sort(()=>Math.random()-0.5).slice(0,10);
+ questionIndex=0;
+
+ reset();
+ loop=setInterval(update,speed);
+}
+
+function reset(){
+ snake=[{x:0,y:10}];
+ food=randomPos();
+ dir="RIGHT";
+ score=0;
+ document.getElementById("score").innerText=0;
+ draw();
+}
+
+function randomPos(){
+ return{x:Math.floor(Math.random()*cells),y:Math.floor(Math.random()*cells)}
+}
+
+function draw(){
+ ctx.fillStyle="#111";
+ ctx.fillRect(0,0,400,400);
+ snake.forEach((s,i)=>{
+  ctx.fillStyle=i==0?"#fbc531":"#4cd137";
+  ctx.fillRect(s.x*size,s.y*size,size-1,size-1);
+ });
+ ctx.fillStyle="red";
+ ctx.fillRect(food.x*size,food.y*size,size-1,size-1);
+}
+
+function update(){
+ let head={...snake[0]};
+ if(dir=="LEFT")head.x--;
+ if(dir=="RIGHT")head.x++;
+ if(dir=="UP")head.y--;
+ if(dir=="DOWN")head.y++;
+
+ if(head.x<0||head.y<0||head.x>=cells||head.y>=cells)return endGame();
+ for(let s of snake) if(head.x==s.x&&head.y==s.y)return endGame();
+
+ snake.unshift(head);
+ if(head.x==food.x&&head.y==food.y) askQuestion();
+ else snake.pop();
+ draw();
+}
+
+function askQuestion(){
+ clearInterval(loop);
+ if(questionIndex>=selectedQuestions.length)return endGame();
+ const q=selectedQuestions[questionIndex++];
+ qBox.style.display="block";
+ qText.innerText=q.q;
+ answers.innerHTML="";
+ q.a.forEach((x,i)=>{
+  answers.innerHTML+=`<button onclick="answer(${i},${q.c})">${x}</button>`;
+ });
+}
+
+function answer(i,c){
+ qBox.style.display="none";
+ if(i===c){
+  score+=10;
+  document.getElementById("score").innerText=score;
+  food=randomPos();
+  loop=setInterval(update,speed);
+ }else endGame();
+}
+
+function endGame(){
+ clearInterval(loop);
+ if(score>high) localStorage.setItem("highSnake",score);
+ finalScore.innerText=score;
+ gameOver.style.display="flex";
+ sound.pause();
+}
+</script>
+
+</body>
+</html>
